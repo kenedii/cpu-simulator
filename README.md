@@ -10,7 +10,7 @@ The simulator implements a limited, simplified educational subset of the 8086/x8
 ### TD4 (4-bit)
 The TD4 architecture implementation is designed to perfectly replicate the **MuseLab version 1.3 TD4 CPU kit**, which itself is based on the famous Japanese educational DIY CPU from **Kaoru Tonami's book *"How a CPU is made" (CPU no Tsukurikata)***. 
 It features:
-- Exactly 12 physical instructions (no HLT, just pure TTL logic).
+- Exactly 12 physical instructions
 - 4-bit architecture with 2 registers (A, B).
 - A specialized ROM viewer generating the precise reversed 8-bit DIP switch configurations (Immediate + Opcode) used physically to program the kit.
 - A configurable ROM size defaulting to 32 bytes (256 bits) to allow extended experimentation beyond the physical hardware's limits.

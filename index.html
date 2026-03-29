@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Interactive CPU Visualizer — Watch electricity flow through CPU components as you write and debug x86 or TD4 assembly code. Supports multiple architectures, IO devices, and visualization modes.">
+  <title>CPU Visualizer — x86 & TD4 Assembly Simulator</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='56' font-size='56'>⚡</text></svg>">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ====== Top Toolbar ====== -->
+    <div class="toolbar" id="toolbar">
+      <!-- Architecture Selector -->
+      <div class="toolbar-group">
+        <span class="toolbar-label">Arch</span>
+        <select id="arch-select" class="arch-select">
+          <option value="x86" selected>x86 (Intel)</option>
+          <option value="td4">TD4 (4-bit)</option>
+        </select>
+        <button class="btn btn-sm arch-info-trigger" id="arch-info-btn" title="Architecture information">ℹ️</button>
+        <span class="arch-info-label" id="arch-info-label">Complex Instruction Set Computer (CISC)</span>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <!-- Execution Controls -->
+      <div class="toolbar-group">
+        <button class="btn btn-success" id="btn-assemble" title="Assemble code (F5)">⚙ Assemble</button>
+        <button class="btn btn-primary" id="btn-run" title="Run program (Ctrl+Enter)">▶ Run</button>
+        <button class="btn" id="btn-step" title="Step one instruction (F10)">⏭ Step</button>
+        <button class="btn btn-warning" id="btn-pause" disabled title="Pause execution (Esc)">⏸ Pause</button>
+        <button class="btn btn-danger" id="btn-reset" title="Reset CPU and memory">↺ Reset</button>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <!-- Speed Control -->
+      <div class="toolbar-group">
+        <span class="toolbar-label">Speed</span>
+        <input type="range" id="speed-slider" min="10" max="2000" value="500" step="10">
+        <span id="speed-label">500ms</span>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <!-- Visualization Mode -->
+      <div class="toolbar-group">
+        <span class="toolbar-label">View</span>
+        <select id="viz-mode">
+          <option value="block">🔲 Block Diagram</option>
+          <option value="gate">🔌 Gate-Level</option>
+          <option value="trace">📈 Signal Trace</option>
+          <option value="pcb">💻 PCB Layout</option>
+        </select>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <!-- Memory Controls -->
+      <div class="toolbar-group" id="mem-controls">
+        <span class="toolbar-label">Memory</span>
+        <select id="mem-size">
+          <option value="256" selected>256 B</option>
+          <option value="512">512 B</option>
+          <option value="1024">1 KB</option>
+          <option value="4096">4 KB</option>
+        </select>
+        <div class="toggle-switch">
+          <input type="checkbox" id="rom-ram-toggle">
+          <span id="rom-ram-label">RAM</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Architecture Info Modal ====== -->
+    <div class="arch-info-modal" id="arch-info-modal">
+      <div class="arch-info-modal-inner">
+        <button class="arch-info-close" id="arch-info-close">✕</button>
+        <div class="arch-info-content" id="arch-info-content"></div>
+      </div>
+    </div>
+
+    <!-- ====== Chat Settings Modal ====== -->
+    <div class="arch-info-modal" id="chat-settings-modal">
+      <div class="arch-info-modal-inner chat-settings-inner">
+        <button class="arch-info-close" id="chat-settings-close">✕</button>
+        <h2>Chat Settings</h2>
+        <div class="chat-settings-form">
+          <label for="chat-provider">Provider</label>
+          <select id="chat-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="gemini">Gemini</option>
+            <option value="deepseek">Deepseek</option>
+          </select>
+
+          <label for="chat-api-key">API Key</label>
+          <input type="password" id="chat-api-key" placeholder="Enter API Key">
+
+          <label for="chat-model">Model Name</label>
+          <input type="text" id="chat-model" placeholder="Model name mapping (e.g. gpt-4o, claude-3-5-sonnet)">
+          <small id="chat-model-def">Default for selected provider will be used if blank.</small>
+
+          <button id="chat-settings-save" class="btn btn-primary" style="margin-top: 10px;">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Main Content ====== -->
+    <div class="main-content">
+
+      <!-- Left Panel: Editor + CPU State -->
+      <div class="left-panel" id="left-panel">
+        <div class="editor-section">
+          <div class="panel-header">
+            <span>📝 Assembly Editor</span>
+            <span style="font-size:10px; color: var(--text-muted)">Intel Syntax</span>
+          </div>
+          <div id="editor-panel"></div>
+        </div>
+
+        <div class="state-panel">
+          <div class="state-tabs">
+            <div class="state-tab active" data-target="registers-pane" onclick="switchStateTab(this)">Registers</div>
+            <div class="state-tab" data-target="memory-pane" onclick="switchStateTab(this)">Memory</div>
+          </div>
+          <div class="state-content">
+            <div class="state-content-pane active" id="registers-pane">
+              <div id="register-view"></div>
+            </div>
+            <div class="state-content-pane" id="memory-pane">
+              <div id="memory-view"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Panel: Visualizer -->
+      <div class="center-panel" id="center-panel">
+        <div id="visualizer-panel"></div>
+      </div>
+
+      <!-- Right Panel: Docs + IO + Examples + Chat -->
+      <div class="right-panel" id="right-panel">
+        <div class="info-tabs">
+          <div class="info-tab active" data-target="examples-tab">Examples</div>
+          <div class="info-tab" data-target="io-tab">I/O</div>
+          <div class="info-tab" data-target="docs-tab">Docs</div>
+          <div class="info-tab" data-target="chat-tab">Chat</div>
+        </div>
+
+        <div class="info-tab-content active" id="examples-tab">
+          <div class="example-select-container">
+            <select id="example-select"></select>
+          </div>
+          <div class="example-description" id="example-description"></div>
+        </div>
+
+        <div class="info-tab-content" id="io-tab">
+          <div id="io-panel"></div>
+        </div>
+
+        <div class="info-tab-content" id="docs-tab">
+          <div id="docs-content"></div>
+        </div>
+
+        <div class="info-tab-content chat-tab-content" id="chat-tab">
+          <div class="chat-header">
+            <span>AI Assistant</span>
+            <div class="chat-header-actions">
+              <span class="chat-info-tooltip" title="All data remains local. API keys are only sent to the selected LLM provider's API for authentication.">ℹ️</span>
+              <button id="chat-new-btn" title="New Chat">➕</button>
+              <button id="chat-settings-btn" title="Chat Settings">⚙️</button>
+            </div>
+          </div>
+          <div class="chat-history" id="chat-history">
+            <div class="chat-message assistant">Hello! I am an AI designed to create code for a simulated basic educational implementation of this CPU architecture. How can I help?</div>
+          </div>
+          <div class="chat-input-container">
+            <textarea id="chat-input" placeholder="Ask about the CPU or request code..."></textarea>
+            <button id="chat-send-btn" title="Send message"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Status Bar ====== -->
+    <div class="status-bar" id="status-bar">Ready</div>
+  </div>
+
+  <script>
+    function switchStateTab(el) {
+      document.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.state-content-pane').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById(el.dataset.target).classList.add('active');
+    }
+    
+    // Also handle info tabs globally
+    document.querySelectorAll('.info-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.info-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.info-tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.target).classList.add('active');
+      });
+    });
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
